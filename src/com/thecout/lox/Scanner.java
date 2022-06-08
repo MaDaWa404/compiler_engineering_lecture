@@ -13,98 +13,186 @@ public class Scanner {
         this.source = source;
     }
 
-    public List<Token> scanLine(String line, int lineNumber) {
-        List<Token> tokenList = new ArrayList<>();
+	public List<Token> scanLine(String line, int lineNumber) {
+		List<Token> tokenList = new ArrayList<>();
+		for (int i = 0; i < line.length(); i++) {
+			char c = line.charAt(i);
+			if (isDigit(c)) {
+				StringBuilder n = new StringBuilder();
+				n.append(line.charAt(i));
+				i++;
+				while (isDigit(line.charAt(i)) || line.charAt(i) == '.') {
+					n.append(line.charAt(i));
+					i++;
+					if (i>= line.length()) {
+						break;
+					}
+				}
+				i--;
+				tokenList.add(new Token(TokenType.NUMBER, n.toString(), Double.parseDouble(n.toString()), lineNumber));
+			} else if (isAlpha(c)) {
+				StringBuilder l = new StringBuilder();
+				l.append(line.charAt(i));
+				i++;
+				while (isAlpha(line.charAt(i)) || isDigit(line.charAt(i))) {
+					l.append(line.charAt(i));
+					i++;
+				}
+				i--;
+				String literal = l.toString();
+				switch (literal) {
+					case "and":
+						tokenList.add(new Token(TokenType.AND, literal, literal, lineNumber));
+						break;
+					case "else":
+						tokenList.add(new Token(TokenType.ELSE, literal, literal, lineNumber));
+						break;
+					case "false":
+						tokenList.add(new Token(TokenType.FALSE, literal, literal, lineNumber));
+						break;
+					case "fun":
+						tokenList.add(new Token(TokenType.FUN, literal, literal, lineNumber));
+						break;
+					case "for":
+						tokenList.add(new Token(TokenType.FOR, literal, literal, lineNumber));
+						break;
+					case "if":
+						tokenList.add(new Token(TokenType.IF, literal, literal, lineNumber));
+						break;
+					case "nil":
+						tokenList.add(new Token(TokenType.NIL, literal, literal, lineNumber));
+						break;
+					case "or":
+						tokenList.add(new Token(TokenType.OR, literal, literal, lineNumber));
+						break;
+					case "print":
+						tokenList.add(new Token(TokenType.PRINT, literal, literal, lineNumber));
+						break;
+					case "return":
+						tokenList.add(new Token(TokenType.RETURN, literal, literal, lineNumber));
+						break;
+					case "true":
+						tokenList.add(new Token(TokenType.TRUE, literal, literal, lineNumber));
+						break;
+					case "var":
+						tokenList.add(new Token(TokenType.VAR, literal, literal, lineNumber));
+						break;
+					case "while":
+						tokenList.add(new Token(TokenType.WHILE, literal, literal, lineNumber));
+						break;
+					default:
+						tokenList.add(new Token(TokenType.IDENTIFIER, literal, literal, lineNumber));
+						break;
+				}
 
-        String temp = "";
-        Token token;
-        Token newToken = null;
-        char[] chars = line.toCharArray();
+			} else {
 
-        for (int i = 0; i < chars.length; i++) {
-            temp += chars[i];
-            token = newToken;
-            newToken = getToken(temp, lineNumber);
+				switch (c) {
+					case ' ':
+						break;
+					case '(':
+						tokenList.add(new Token(TokenType.LEFT_PAREN, "(", "(", lineNumber));
+						break;
+					case ')':
+						tokenList.add(new Token(TokenType.RIGHT_PAREN, ")", ")", lineNumber));
+						break;
+					case '{':
+						tokenList.add(new Token(TokenType.LEFT_BRACE, "{", "{", lineNumber));
+						break;
+					case '}':
+						tokenList.add(new Token(TokenType.RIGHT_BRACE, "}", "}", lineNumber));
+						break;
+					case ',':
+						tokenList.add(new Token(TokenType.COMMA, ",", ",", lineNumber));
+						break;
+					case '.':
+						tokenList.add(new Token(TokenType.DOT, ".", ".", lineNumber));
+						break;
+					case '-':
+						tokenList.add(new Token(TokenType.MINUS, "-", "-", lineNumber));
+						break;
+					case '+':
+						tokenList.add(new Token(TokenType.PLUS, "+", "+", lineNumber));
+						break;
+					case ';':
+						tokenList.add(new Token(TokenType.SEMICOLON, ";", ";", lineNumber));
+						break;
+					case '/':
+						tokenList.add(new Token(TokenType.SLASH, "/", "/", lineNumber));
+						break;
+					case '*':
+						tokenList.add(new Token(TokenType.STAR, "*", "*", lineNumber));
+						break;
+					case '!':
+						if (line.charAt(i + 1) == '=') {
+							tokenList.add(new Token(TokenType.BANG_EQUAL, "!=", "!=", lineNumber));
+							i++;
+							break;
+						} else {
+							tokenList.add(new Token(TokenType.BANG, "!", "!", lineNumber));
+							break;
+						}
+					case '=':
+						if (line.charAt(i + 1) == '=') {
+							tokenList.add(new Token(TokenType.EQUAL_EQUAL, "==", "==", lineNumber));
+							i++;
+							break;
+						} else {
+							tokenList.add(new Token(TokenType.EQUAL, "=", "=", lineNumber));
+							break;
+						}
+					case '>':
+						if (line.charAt(i + 1) == '=') {
+							tokenList.add(new Token(TokenType.GREATER_EQUAL, ">=", ">=", lineNumber));
+							i++;
+							break;
+						} else {
+							tokenList.add(new Token(TokenType.GREATER, ">", ">", lineNumber));
+							break;
+						}
+					case '<':
+						if (line.charAt(i + 1) == '=') {
+							tokenList.add(new Token(TokenType.LESS_EQUAL, "<=", "<=", lineNumber));
+							i++;
+							break;
+						} else {
+							tokenList.add(new Token(TokenType.LESS, "<", "<", lineNumber));
+							break;
+						}
+					case '"':
+						StringBuilder w = new StringBuilder();
+						w.append("\"");
+						i++;
+						while (line.charAt(i) != '"') {
+							w.append(line.charAt(i));
+							i++;
+						}
+						w.append(line.charAt(i));
+						tokenList.add(new Token(TokenType.STRING, w.toString(), w.toString().substring(1, w.length() - 1), lineNumber));
+						break;
 
-            if (newToken == null && token != null) {
-                tokenList.add(token);
-                temp = "";
-                if (chars[i] != ' ') i--;
-            }
+				}
+			}
+		}
 
-            //end of line:
-            if (i == chars.length - 1 && newToken != null) {
-                tokenList.add(newToken);
-            }
-        }
-        return tokenList;
-    }
+		return tokenList;
+	}
 
-    private Token getToken(String temp, int lineNumber) {
+	public List<Token> scan() {
+		String[] lines = source.split("\n");
+		for (int i = 0; i < lines.length; i++) {
+			tokens.addAll(scanLine(lines[i], i));
+		}
+		tokens.add(new Token(EOF, "", "", lines.length));
+		return tokens;
+	}
 
-        Token token;
+	private boolean isDigit(char c) {
+		return c >= '0' && c <= '9';
+	}
 
-        if (temp.matches("\\d+([.](\\d+)?)?"))
-            return new Token(TokenType.NUMBER, temp, Double.parseDouble(temp), lineNumber);
+	private boolean isAlpha(char c) {
+		return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_';
+	}
 
-        if (temp.matches("//.*")) return new Token(TokenType.COMMENT, temp, temp.substring(2), lineNumber);
-
-        if (temp.matches("\".*\""))
-            return new Token(TokenType.STRING, temp, temp.substring(1, temp.length() - 1), lineNumber);
-
-        token = getOtherToken(temp, lineNumber);
-        if (token != null) return token;
-
-        if (temp.matches("([a-z]|_)([a-z]|[A-Z]|_|\\d)*"))
-            return new Token(TokenType.IDENTIFIER, temp, temp, lineNumber);
-        else return null;
-    }
-
-
-    private Token getOtherToken(String temp, int lineNum) {
-        return switch (temp) {
-            case "and" -> new Token(TokenType.AND, temp, temp, lineNum);
-            case "else" -> new Token(TokenType.ELSE, temp, temp, lineNum);
-            case "false" -> new Token(TokenType.FALSE, temp, temp, lineNum);
-            case "fun" -> new Token(TokenType.FUN, temp, temp, lineNum);
-            case "for" -> new Token(TokenType.FOR, temp, temp, lineNum);
-            case "if" -> new Token(TokenType.IF, temp, temp, lineNum);
-            case "nil" -> new Token(TokenType.NIL, temp, temp, lineNum);
-            case "or" -> new Token(TokenType.OR, temp, temp, lineNum);
-            case "print" -> new Token(TokenType.PRINT, temp, temp, lineNum);
-            case "return" -> new Token(TokenType.RETURN, temp, temp, lineNum);
-            case "true" -> new Token(TokenType.TRUE, temp, temp, lineNum);
-            case "var" -> new Token(TokenType.VAR, temp, temp, lineNum);
-            case "while" -> new Token(TokenType.WHILE, temp, temp, lineNum);
-            case "(" -> new Token(TokenType.LEFT_PAREN, temp, temp, lineNum);
-            case ")" -> new Token(TokenType.RIGHT_PAREN, temp, temp, lineNum);
-            case "{" -> new Token(TokenType.LEFT_BRACE, temp, temp, lineNum);
-            case "}" -> new Token(TokenType.RIGHT_BRACE, temp, temp, lineNum);
-            case "," -> new Token(TokenType.COMMA, temp, temp, lineNum);
-            case "." -> new Token(TokenType.DOT, temp, temp, lineNum);
-            case "-" -> new Token(TokenType.MINUS, temp, temp, lineNum);
-            case "+" -> new Token(TokenType.PLUS, temp, temp, lineNum);
-            case ";" -> new Token(TokenType.SEMICOLON, temp, temp, lineNum);
-            case "/" -> new Token(TokenType.SLASH, temp, temp, lineNum);
-            case "*" -> new Token(TokenType.STAR, temp, temp, lineNum);
-            case "!=" -> new Token(TokenType.BANG_EQUAL, temp, temp, lineNum);
-            case "!" -> new Token(TokenType.BANG, temp, temp, lineNum);
-            case "==" -> new Token(TokenType.EQUAL_EQUAL, temp, temp, lineNum);
-            case "=" -> new Token(TokenType.EQUAL, temp, temp, lineNum);
-            case ">=" -> new Token(TokenType.GREATER_EQUAL, temp, temp, lineNum);
-            case ">" -> new Token(TokenType.GREATER, temp, temp, lineNum);
-            case "<=" -> new Token(TokenType.LESS_EQUAL, temp, temp, lineNum);
-            case "<" -> new Token(TokenType.LESS, temp, temp, lineNum);
-            default -> null;
-        };
-    }
-
-    public List<Token> scan() {
-        String[] lines = source.split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            tokens.addAll(scanLine(lines[i], i));
-        }
-        tokens.add(new Token(EOF, "", "", lines.length));
-        return tokens;
-    }
 }

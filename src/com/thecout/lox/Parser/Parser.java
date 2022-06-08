@@ -7,6 +7,7 @@ import com.thecout.lox.Token;
 import com.thecout.lox.TokenType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.thecout.lox.TokenType.*;
@@ -37,7 +38,7 @@ public class Parser {
 
     private Stmt declaration() {
         try {
-            if (match(FUN)) return function("function");
+            if (match(FUN)) return function();
             if (match(VAR)) return varDeclaration();
 
             return statement();
@@ -57,49 +58,40 @@ public class Parser {
         return expressionStatement();
     }
 
-    private Stmt forStatement() {
-        ArrayList<Stmt> block = new ArrayList<>();
-        Expr increment;
-        Expr condition;
+	private Stmt forStatement() {
+		Expr increment;
+		Expr condition;
+		consume(LEFT_PAREN, "Expect '(' after 'for'.");
+		Stmt init = null;
+		if (match(VAR)) {
+			init = varDeclaration();
+		} else if (!match(SEMICOLON)) {
+			init = expressionStatement();
+		}
 
-        consume(LEFT_PAREN, "Expect '(' at the beginning of for head.");
-        if (match(VAR)) {
-            block.add(varDeclaration());
-        } else if (!match(SEMICOLON)) {
-            block.add(expressionStatement());
-        } else {
-            consume(SEMICOLON, "Expect ';' in for statement if not starts with variable");
-        }
+			condition = expression();
+			consume(SEMICOLON, "");
 
-        increment = expression();
-        consume(SEMICOLON, "Expect ';' after increment expression.");
+		increment = expression();
+		consume(RIGHT_PAREN, "");
+		Stmt stm = statement();
+		Block body = new Block(Arrays.asList(stm, new Expression(increment)));
+		return new Block(Arrays.asList(init, new While(condition, body)));
+	}
 
-        condition = expression();
-        consume(RIGHT_PAREN, "Expect ')' at the end of for head.");
+	private Stmt ifStatement() {
+		consume(LEFT_PAREN, "Expect '(' after 'if'.");
+		Expr condition = expression();
+		consume(RIGHT_PAREN, "Expect ')' after if condition."); // [parens]
 
-        List<Stmt> body = new ArrayList<>();
-        body.add(statement());
-        body.add(0, new Expression(increment));
-        Stmt stmt = new Block(body);
-        While whileStmt = new While(condition, stmt);
+		Stmt thenBranch = statement();
+		Stmt elseBranch = null;
+		if (match(ELSE)) {
+			elseBranch = statement();
+		}
 
-        block.add(whileStmt);
-        return new Block(block);
-    }
-
-    private Stmt ifStatement() {
-        consume(LEFT_PAREN, "Expect '(' after 'if'.");
-        Expr condition = expression();
-        consume(RIGHT_PAREN, "Expect ')' after if condition."); // [parens]
-
-        Stmt thenBranch = statement();
-        Stmt elseBranch = null;
-        if (match(ELSE)) {
-            elseBranch = statement();
-        }
-
-        return new If(condition, thenBranch, elseBranch);
-    }
+		return new If(condition, thenBranch, elseBranch);
+	}
 
     private Stmt printStatement() {
         Expr expr = expression();
@@ -108,7 +100,6 @@ public class Parser {
     }
 
     private Stmt returnStatement() {
-        int old = current - 1;
         if (match(SEMICOLON))
             return new Return(null);
         Expr expr = expression();
@@ -116,15 +107,16 @@ public class Parser {
         return new Return(expr);
     }
 
-    private Stmt varDeclaration() {
-        Expr init = null;
-        consume(IDENTIFIER, "Expect identifier after 'var'.");
-        Token name = previous();
-        if (match(EQUAL))
-            init = expression();
-        consume(SEMICOLON, "Expect ';' after variable declaration.");
-        return new Var(name, init);
-    }
+	private Stmt varDeclaration() {
+		Token name = consume(IDENTIFIER, "");
+		Expr expr = null;
+		if (match(EQUAL)) {
+			expr = expression();
+		}
+		consume(SEMICOLON, "");
+		return new Var(name, expr);
+
+	}
 
     private Stmt whileStatement() {
         consume(LEFT_PAREN, "Expect '(' after 'while'.");
@@ -140,40 +132,46 @@ public class Parser {
         return new Expression(expression);
     }
 
-    private Function function(String kind) {
-        Token name;
-        List<Stmt> body;
-        consume(TokenType.IDENTIFIER, "Expect identifier after 'fun'.");
-        name = previous();
-        consume(TokenType.LEFT_PAREN, "Expect '(' after function identifier.");
-        List<Token> parameters = new ArrayList<>();
-        while (check(TokenType.IDENTIFIER) || match(TokenType.COMMA)) {
-            if (match(TokenType.IDENTIFIER)) {
-                parameters.add(previous());
-            }
-        }
-        consume(TokenType.RIGHT_PAREN, "Expect ')' after function parameter list.");
-        consume(TokenType.LEFT_BRACE, "Expect '{' at the beginning of a code block.");
-        body = block();
-        return new Function(name, parameters, body);
-    }
+	private Function function() {
+		Token name = consume(IDENTIFIER, "Expext bla bla");
+		consume(LEFT_PAREN, "bla");
+		List<Token> params = new ArrayList<>();
+		if (!check(RIGHT_PAREN)) {
+			do {
+				if (params.size() >= 8) {
+					error(peek(), "");
+				}
+				params.add(consume(IDENTIFIER, ""));
+			} while (match(COMMA));
+		}
+		consume(RIGHT_PAREN, "");
+		consume(LEFT_BRACE, "");
+		List<Stmt> body = block();
+		return new Function(name, params, body);
+	}
 
-    private List<Stmt> block() {
-        List<Stmt> block = new ArrayList<>();
-        while (!check(RIGHT_BRACE)) {
-            block.add(declaration());
-        }
-        consume(RIGHT_BRACE, "Expect '}' at end of block");
-        return block;
-    }
+	private List<Stmt> block() {
+		List<Stmt> block = new ArrayList<>();
+		while (!match(RIGHT_BRACE)) {
+			block.add(declaration());
+		}
+		return block;
+	}
 
-    private Expr assignment() {
-        Token name = previous();
-        Expr value;
-        value = or();
-        return new Assign(name, value);
+	private Expr assignment() {
+		Expr expr = or();
+		if (match(EQUAL)) {
+			Token equals = previous();
+			Expr value = assignment();
 
-    }
+			if (expr instanceof Variable) {
+				Token name = ((Variable) expr).name;
+				return new Assign(name, value);
+			}
+			ParserError.error(equals, "");
+		}
+		return expr;
+	}
 
     private Expr or() {
         Expr expr = and();
@@ -187,127 +185,103 @@ public class Parser {
         return expr;
     }
 
-    private Expr and() {
-        Expr expr = equality();
+	private Expr and() {
+		Expr left = equality();
+		if (match(AND)) {
+			Token op = previous();
+			Expr right = equality();
+			return new Logical(left, op, right);
+		}
+		return left;
+	}
 
-        while (match(AND)) {
-            Token operator = previous();
-            Expr right = equality();
-            expr = new Logical(expr, operator, right);
-        }
-        return expr;
-    }
+	private Expr equality() {
+		Expr left = comparison();
+		if (match(EQUAL_EQUAL) || match(BANG_EQUAL)) {
+			Token op = previous();
+			Expr right = comparison();
+			return new Binary(left, op, right);
+		}
+		return left;
+	}
 
-    private Expr equality() {
-        Expr expr = comparison();
+	private Expr comparison() {
+		Expr left = addition();
+		if (match(GREATER) || match(GREATER_EQUAL) || match(LESS_EQUAL) || match(LESS)) {
+			Token op = previous();
+			Expr right = addition();
+			return new Binary(left, op, right);
+		}
+		return left;
+	}
 
-        while (match(EQUAL_EQUAL) || match(BANG_EQUAL)) {
-            Token operator = previous();
-            Expr right = comparison();
-            expr = new Logical(expr, operator, right);
-        }
-
-        return expr;
-    }
-
-    private Expr comparison() {
-        Expr expr = addition();
-
-        while (match(TokenType.GREATER) || match(TokenType.GREATER_EQUAL) || match(TokenType.LESS) || match(TokenType.LESS_EQUAL)) {
-            Token operator = previous();
-            Expr right = addition();
-            expr = new Logical(expr, operator, right);
-        }
-
-        return expr;
-    }
-
-    private Expr addition() {
-        Expr expr = multiplication();
-
-        while (match(TokenType.MINUS) || match(TokenType.PLUS)) {
-            Token operator = previous();
-            Expr right = multiplication();
-            expr = new Binary(expr, operator, right);
-        }
+	private Expr addition() {
+		Expr expr = multiplication();
+		while (match(PLUS) || match(MINUS)) {
+			Token op = previous();
+			Expr right = multiplication();
+			expr = new Binary(expr, op, right);
+		}
 
         return expr;
     }
 
-    private Expr multiplication() {
-        Expr expr = unary();
+	private Expr multiplication() {
+		Expr left = unary();
+		while (match(SLASH) || match(STAR)) {
+			Token op = previous();
+			Expr right = unary();
+			left = new Binary(left, op, right);
+		}
+		return left;
+	}
 
-        while (match(TokenType.SLASH) || match(TokenType.STAR)) {
-            Token operator = previous();
-            Expr right = unary();
-            expr = new Binary(expr, operator, right);
-        }
+	private Expr unary() {
+		if (match(MINUS) || match(BANG)) {
+			return new Unary(previous(), null);
+		}
+		Expr expr = call();
+		return expr;
+	}
 
-        return expr;
-    }
+	private Expr finishCall(Expr callee) {
+		return null;
+	}
 
-    private Expr unary() {
-        if (match(TokenType.BANG) || match(TokenType.MINUS)) {
-            Token operator = previous();
-            Expr right = unary();
-            return new Unary(operator, right);
-        }
-        return call();
-    }
+	private Expr call() {
+		Expr expr = primary();
+		List<Expr> arguments = new ArrayList<>();
+		if (match((LEFT_PAREN))) {
+			arguments = arguments();
+			consume(RIGHT_PAREN, "");
+			return new Call(expr, arguments);
+		}
+		return expr;
+	}
 
-    private Expr call() {
-        List<Expr> arguments = new ArrayList<>();
-        Expr callee = primary();
+	private List<Expr> arguments() {
+		List<Expr> exprs = new ArrayList<>();
+		exprs.add(expression());
+		while (match(COMMA)) {
+			exprs.add(expression());
+		}
+		return exprs;
+	}
 
-        while (check(TokenType.RIGHT_PAREN) || check(TokenType.DOT)) {
-            if (match(TokenType.RIGHT_PAREN))
-                arguments.addAll(arguments());
-            else {
-                consume(TokenType.DOT, "Expect '.' after primary/argument list in call.");
-                consume(TokenType.IDENTIFIER, "Expect identifier after '.' in call.");
-            }
-        }
+	private Expr primary() {
+		if (match(LEFT_PAREN)) {
+			Expr expr = expression();
+			consume(RIGHT_PAREN, "");
+			return expr;
+		} else if (match(IDENTIFIER)) {
+			return new Variable(previous());
+		}
+		Token val = consume(tokens.get(current).type, "");
+		return new Literal(val.literal);
+	}
 
-        return new Call(callee, arguments);
 
-    }
-    private List<Expr> arguments() {
-        ArrayList<Expr> arguments = new ArrayList<>();
-        arguments.add(expression());
-        while (!match(TokenType.RIGHT_PAREN)) {
-            consume(TokenType.COMMA, "Expect ',' or '(' after expression in arguments");
-            arguments.add(expression());
-        }
-        return arguments;
-    }
-
-    private Expr primary() {
-        switch (peek().type) {
-            case STRING:
-                if (peek().lexeme.equals("super")) {
-                    advance();
-                    consume(TokenType.DOT, "Expect '.' after super keyword.");
-                    consume(TokenType.IDENTIFIER, "Expect identifier after '.' with call to super");
-                    return new Variable(advance());
-                }
-                return new Variable(advance());
-            case LEFT_PAREN:
-                advance();
-                Grouping grouping = new Grouping(expression());
-                consume(TokenType.RIGHT_PAREN, "Grouping has to end with ')'");
-                return grouping;
-            case TRUE:
-            case FALSE:
-            case NIL:
-            case NUMBER:
-            case IDENTIFIER:
-                return new Variable(advance());
-            default:
-                return null;
-        }
-    }
-
-    private boolean match(TokenType... types) {
+	private boolean match(TokenType... types) {
         for (TokenType type : types) {
             if (check(type)) {
                 advance();
